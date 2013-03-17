@@ -14,17 +14,21 @@ module Sprinkle
       def roles(roles)
         @options[:roles] = roles
       end
-      
+
       def gateway(gateway)
         @options[:gateway] = gateway
       end
-      
+
       def user(user)
         @options[:user] = user
       end
 
       def password(password)
         @options[:password] = password
+      end
+
+      def keys(keys)
+        @options[:keys] = keys
       end
 
       def process(name, commands, roles, suppress_and_return_failures = false)
@@ -38,9 +42,9 @@ module Sprinkle
         return transfer_with_gateway(name, source, destination, roles, recursive) if gateway_defined?
         transfer_direct(name, source, destination, roles, recursive)
       end
-			
+
       protected
-      
+
         def process_with_gateway(name, commands, roles)
           res = []
           on_gateway do |gateway|
@@ -48,19 +52,19 @@ module Sprinkle
           end
           !(res.include? false)
         end
-        
+
         def process_direct(name, commands, roles)
           res = []
           Array(roles).each { |role| res << execute_on_role(commands, role) }
           !(res.include? false)
         end
-        
+
         def transfer_with_gateway(name, source, destination, roles, recursive)
           on_gateway do |gateway|
             Array(roles).each { |role| transfer_to_role(source, destination, role, recursive, gateway) }
           end
         end
-        
+
         def transfer_direct(name, source, destination, roles, recursive)
           Array(roles).each { |role| transfer_to_role(source, destination, role, recursive) }
         end
@@ -76,7 +80,7 @@ module Sprinkle
           hosts = @options[:roles][role]
           Array(hosts).each { |host| transfer_to_host(source, destination, host, gateway) }
         end
-        
+
         def execute_on_host(commands, host, gateway = nil)
           res = nil
           logger.debug(blue "executing #{commands.inspect} on #{host}.")
@@ -86,7 +90,13 @@ module Sprinkle
               ssh.loop
             end
           else # direct SSH connection
-            Net::SSH.start(host, @options[:user], :password => @options[:password]) do |ssh|
+            auth_options = {}
+            if @options.has_key?(:password)
+              auth_options[:password] = @options[:password]
+            elsif @options.has_key?(:keys)
+              auth_options[:keys] = @options[:keys]
+            end
+            Net::SSH.start(host, @options[:user], auth_options) do |ssh|
               res = execute_on_connection(commands, ssh)
               ssh.loop
             end
