@@ -87,7 +87,6 @@ module Sprinkle
           if gateway # SSH connection via gateway
             gateway.ssh(host, @options[:user]) do |ssh|
               res = execute_on_connection(commands, ssh)
-              ssh.loop
             end
           else # direct SSH connection
             auth_options = {}
@@ -98,14 +97,13 @@ module Sprinkle
             end
             Net::SSH.start(host, @options[:user], auth_options) do |ssh|
               res = execute_on_connection(commands, ssh)
-              ssh.loop
             end
           end
-          res.detect{|x| x!=0}.nil?
+          res
         end
 
         def execute_on_connection(commands, session)
-          res = []
+          res = true
           Array(commands).each do |cmd|
             session.open_channel do |channel|
               channel.on_data do |ch, data|
@@ -122,8 +120,8 @@ module Sprinkle
                   logger.debug(green 'success')
                 else
                   logger.debug(red('failed (%d).'%exit_code))
+                  res = false
                 end
-                res << exit_code
               end
 
               channel.on_request("exit-signal") do |ch, data|
@@ -134,6 +132,8 @@ module Sprinkle
                 logger.error("couldn't run remote command #{cmd}") unless status
               end
             end
+            session.loop
+            break if !res
           end
           res
         end
